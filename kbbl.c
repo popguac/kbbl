@@ -396,6 +396,19 @@ static FILE* openLogFile(const char* logName) {
 
 
 
+static void restoreBacklightValue(void) {
+	// TODO: make sleep time configurable - registry?
+	// TODO: is this Sleep() necessary? how long should it be? seems like this is required else sometimes the backlight isn't restored properly when waking from monitor-off state
+	//   why? maybe the order of events differs and somehow the keyboard backlight is changed by lenovo software after this event is processed
+	// TODO: don't wait inside this event handler - should use a separate thread so caller isn't forced to wait?
+	Sleep(500);
+	if (WriteByteToEC(0x0d, G_VAL_TO_RESTORE)) {
+		LOGF("restored val: %d", G_VAL_TO_RESTORE);
+	} else {
+		logMsg("WriteByteToEC failed");
+	}
+}
+
 static DWORD WINAPI ServiceCtrlHandler(DWORD dwControl, DWORD dwEventType, LPVOID lpEventData, LPVOID lpContext) {
 	UNREFERENCED_PARAMETER(lpContext);
 
@@ -428,28 +441,29 @@ static DWORD WINAPI ServiceCtrlHandler(DWORD dwControl, DWORD dwEventType, LPVOI
 			if (dwEventType == PBT_POWERSETTINGCHANGE) {
 				//logMsg("PBT_POWERSETTINGCHANGE");
 				POWERBROADCAST_SETTING* stg = (POWERBROADCAST_SETTING*) lpEventData;
-				if (stg != NULL && IsEqualGUID(&stg->PowerSetting, &GUID_CONSOLE_DISPLAY_STATE) && stg->DataLength >= 1) {
-					// The Data member is a DWORD with one of the following values.
-					// 0x0 - The display is off.
-					// 0x1 - The display is on.
-					// 0x2 - The display is dimmed.
-					UCHAR dataVal = stg->Data[0];
-					LOGF("power-sleep state is now: %d", dataVal);
-					G_SLEEP_STATE = dataVal;
-
-					if (dataVal == 1) {
-						// TODO: make sleep time configurable - registry?
-						// TODO: is this Sleep() necessary? how long should it be? seems like this is required else sometimes the backlight isn't restored properly when waking from monitor-off state
-						//   why? maybe the order of events differs and somehow the keyboard backlight is changed by lenovo software after this event is processed
-						// TODO: don't wait inside this event handler - should use a separate thread so caller isn't forced to wait?
-						Sleep(500);
-						if (WriteByteToEC(0x0d, G_VAL_TO_RESTORE)) {
-							LOGF("restored val: %d", G_VAL_TO_RESTORE);
-						} else {
-							logMsg("WriteByteToEC failed");
+				if (stg != NULL) {
+					if (IsEqualGUID(&stg->PowerSetting, &GUID_CONSOLE_DISPLAY_STATE) && stg->DataLength >= 1) {
+						// The Data member is a DWORD with one of the following values.
+						// 0x0 - The display is off.
+						// 0x1 - The display is on.
+						// 0x2 - The display is dimmed.
+						UCHAR dataVal = stg->Data[0];
+						LOGF("power-console-display state is now: %d", dataVal);
+						G_SLEEP_STATE = dataVal;
+						if (dataVal == 1) {
+							restoreBacklightValue();
+						}
+					} else if (IsEqualGUID(&stg->PowerSetting, &GUID_LIDSWITCH_STATE_CHANGE) && stg->DataLength >= 1) {
+						// The Data member is a DWORD that indicates the current lid state:
+						// 0x0 - The lid is closed.
+						// 0x1 - The lid is opened.
+						UCHAR dataVal = stg->Data[0];
+						LOGF("power-lid state is now: %d", dataVal);
+						G_SLEEP_STATE = dataVal;
+						if (dataVal == 1) {
+							restoreBacklightValue();
 						}
 					}
-
 				}
 			}
 			break;
@@ -484,6 +498,11 @@ static void WINAPI serviceMainCB(DWORD argc, LPTSTR *argv) {
 
 	// TODO: rather than calling RegisterPowerSettingNotification() - can add "SERVICE_ACCEPT_POWEREVENT" to dwControlsAccepted above?
 	HPOWERNOTIFY hNotify = RegisterPowerSettingNotification(G_STATUS_HANDLE, &GUID_CONSOLE_DISPLAY_STATE, DEVICE_NOTIFY_SERVICE_HANDLE);
+	if (hNotify == NULL) {
+		logWinError("RegisterPowerSettingNotification failed");
+		ExitProcess(EXIT_FAILURE);
+	}
+	hNotify = RegisterPowerSettingNotification(G_STATUS_HANDLE, &GUID_LIDSWITCH_STATE_CHANGE, DEVICE_NOTIFY_SERVICE_HANDLE);
 	if (hNotify == NULL) {
 		logWinError("RegisterPowerSettingNotification failed");
 		ExitProcess(EXIT_FAILURE);
