@@ -6,7 +6,7 @@
  *  gcc kbbl.c -o kbbl -s -mwindows -luuid -D_WIN32_WINNT=0x0600 -DWINVER=0x0600 -DWIN32_LEAN_AND_MEAN -D__USE_MINGW_ANSI_STDIO=0 -Wall -Wextra
  *
  * some extra warning flags that can be added to gcc compile:
- *  -Wall -Wextra -Wpedantic -Wshadow -Wmissing-prototypes -Wstrict-prototypes -Wbad-function-cast -Wcast-align -Wno-missing-field-initializers *  *  -Wduplicated-cond -Wduplicated-branches -Wrestrict -Wnull-dereference -Wjump-misses-init -Wdouble-promotion -Wformat=2 -Wdate-time
+ *  -Wall -Wextra -Wpedantic -Wshadow -Wmissing-prototypes -Wstrict-prototypes -Wbad-function-cast -Wcast-align -Wno-missing-field-initializers -Wduplicated-cond -Wduplicated-branches -Wrestrict -Wnull-dereference -Wjump-misses-init -Wdouble-promotion -Wformat=2 -Wdate-time
  *
  * compile with MSVC:
  *  cl -nologo /MD -Ox -Z7 -W2 "-Fekbbl.exe" kbbl.c advapi32.lib user32.lib
@@ -72,23 +72,23 @@ FILE* G_LOG = NULL;
 /**
  * ############################################################################################
  * #
- * # The following chunk of code is derived from: 
+ * # The following chunk of code is derived from:
  * #    https://github.com/RehabMan/HP-ProBook-4x30s-Fan-Reset/blob/master/Fanreset/Fanreset.c
  * #
  * #############################################################################################
  */
 
 // Registers of the embedded controller
-#define EC_DATAPORT		(0x62)	    // EC data io-port
-#define EC_CTRLPORT		(0x66)	    // EC control io-port
+#define EC_DATAPORT     (0x62)      // EC data io-port
+#define EC_CTRLPORT     (0x66)      // EC control io-port
 
 // Embedded controller status register bits
-#define EC_STAT_OBF		(0x01)      // Output buffer full 
-#define EC_STAT_IBF		(0x02)      // Input buffer full 
+#define EC_STAT_OBF     (0x01)      // Output buffer full
+#define EC_STAT_IBF     (0x02)      // Input buffer full
 
 // Embedded controller commands
 #define EC_CTRLPORT_READ    ((uint8_t)0x80)
-#define EC_CTRLPORT_WRITE	((uint8_t)0x81)
+#define EC_CTRLPORT_WRITE   ((uint8_t)0x81)
 
 static int waitPortStatus(int mask, int wanted) {
 	int timeout = 1000;
@@ -105,7 +105,7 @@ static int waitPortStatus(int mask, int wanted) {
 		}
 
 		Sleep(tick);
-	} 
+	}
 
 	return 0;
 }
@@ -174,7 +174,7 @@ static void mylogf(const char* format, ...) {
 	if (G_LOG == NULL) {
 		return;
 	}
-	
+
 	// TODO: don't print with 2 separate calls
 	char buff[64];
 	time_t timeResult;
@@ -182,7 +182,7 @@ static void mylogf(const char* format, ...) {
 	struct tm* tmData = localtime(&timeResult);
 	strftime(buff, sizeof(buff), "%Y-%m-%d_%H:%M:%S ", tmData);
 	fputs(buff, G_LOG);
-	
+
 	va_list args;
 	va_start(args, format);
 	vfprintf(G_LOG, format, args);
@@ -285,7 +285,7 @@ static int runPipeServer(HANDLE hStopEvent) {
 			}
 		}
 
-		// note: ConnectNamedPipe() can return 0 if client connects in-between the call to CreateNamedPipe() and ConnectNamedPipe(); 
+		// note: ConnectNamedPipe() can return 0 if client connects in-between the call to CreateNamedPipe() and ConnectNamedPipe();
 		//       must check GetLastError() for ERROR_PIPE_CONNECTED.
 		if (!ConnectNamedPipe(hPipe, NULL) && GetLastError() != ERROR_PIPE_CONNECTED) {
 			logWinError("ConnectNamedPipe failed");
@@ -320,7 +320,7 @@ static int runPipeServer(HANDLE hStopEvent) {
 			goto cleanup;
 		}
 	}
-	
+
 	cleanup:
 	if (hPipe != NULL) {
 		CloseHandle(hPipe);
@@ -471,7 +471,7 @@ static DWORD WINAPI ServiceCtrlHandler(DWORD dwControl, DWORD dwEventType, LPVOI
 		default:
 			break;
 	}
-	
+
 	// TODO: should sometimes return ERROR_CALL_NOT_IMPLEMENTED? depends on value of dwControl?
 	return NO_ERROR;
 }
@@ -583,13 +583,13 @@ int main(int argc, const char* argv[]) {
 		return EXIT_FAILURE;
 	}
 
-	
+
 	SERVICE_TABLE_ENTRY svcEntries[] = {
 		{(char*) SVC_NAME, (LPSERVICE_MAIN_FUNCTION) serviceMainCB},
 		{NULL, NULL}
 	};
 
-	// note: If StartServiceCtrlDispatcher succeeds, it connects the calling thread to the service control manager and 
+	// note: If StartServiceCtrlDispatcher succeeds, it connects the calling thread to the service control manager and
 	//   does not return until all running services in the process have entered the SERVICE_STOPPED state.
 	if (!StartServiceCtrlDispatcher(svcEntries)) {
 		logWinError("StartServiceCtrlDispatcher failed");
